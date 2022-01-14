@@ -1,0 +1,281 @@
+<html>
+<body>
+
+<body style="margin:0">
+    <canvas style="width:100%; height:100%" width="640" height="360">
+        
+    </canvas>
+    <script>
+        const runningRect = document.body;
+const virt = new Array(640 * 360).fill(0);       
+
+const palette = [];
+
+for (let i = 0; i < 256; i++) {
+  palette[i * 4] = i;
+  palette[i * 4 + 1] = i;
+  palette[i * 4 + 2] = i;
+  palette[i * 4 + 3] = 255;
+}
+// API for scripts
+const API = {};
+
+const api = API;
+const round = x => { return x|0;}
+
+API.log = (str) => {
+  console.log(str);
+};
+
+API.cos = (angle) => {
+  return (Math.cos((angle * Math.PI) / 512) * 256) | 0;
+};
+
+API.sin = (angle) => {
+  return (Math.sin((angle * Math.PI) / 512) * 256) | 0;
+};
+
+API.atan = (x, y) => {
+  return (Math.atan(x / y) / Math.PI) * 256;
+};
+
+API.putpixel = (i, c) => {
+  virt[i | 0] = c;
+};
+
+API.setpalette = (colors) => {
+  palette = colors.slice();
+};
+
+API.flip = (bufferName) => {
+      const canvas = document.body.querySelector("canvas");
+      const ctx = canvas.getContext("2d");
+      const imageData = ctx.getImageData(0, 0, 640, 360);
+      let j = 0;
+      for (let i = 0; i < 640 * 360; i++) {
+        const color = (virt[i] | 0) % 255 << 2;
+        imageData.data[j] = palette[color];
+        imageData.data[j + 1] = palette[color + 1];
+        imageData.data[j + 2] = palette[color + 2];
+        imageData.data[j + 3] = 255;
+        j += 4;
+      }
+      ctx.putImageData(imageData, 0, 0);
+      return;
+};
+
+API.cls = () => {
+  virt.fill(0);
+};
+    </script>
+    <script>
+    "use strict";
+    /*
+/*
+ *  Landscape with radial shadows.
+ */
+const   SEPARATION  = 100;
+const   BW          = 4;
+const   LIGHTHEIGHT = 150;
+const   BUFFER_EDGE = 512;
+const   BM          = BUFFER_EDGE * BUFFER_EDGE - 1;
+let
+   SinTab = [],
+  Topo = [],
+  Virt = [],
+  LightMap = [],
+  x,y,a;
+
+function DrawLand(camX,camY,angle) {
+let
+   d,x,y,c,lc,
+  h,lh,
+  i,j,
+  heights = [],
+  lheights = [],
+  lcs = [],
+  tx,ty,txDelta,tyDelta,
+  cval, cdelta;
+
+
+  for ( x=0 ; x <= 639 ; x++)
+    {
+      heights[x] = 359;
+      lheights[x] = 359;
+    }
+  for ( d=1 ; d <= 256 ; d++)
+    {
+      tx = camX+SinTab[(angle+SEPARATION+256) % 1024]*d;
+      ty = camY+SinTab[(angle+SEPARATION) % 1024]*d;
+      txDelta = round((((SinTab[(1024+angle-SEPARATION+256) % 1024]
+                 -SinTab[(angle+SEPARATION+256) % 1024]) / 4)*d) / 80);
+      tyDelta = round((((SinTab[(1024+angle-SEPARATION) % 1024]
+                 -SinTab[(angle+SEPARATION) % 1024]) / 4)*d) / 80);
+      for ( x=0 ; x <= 639 ; x++) {
+        i = (round(tx / 256)+(round(ty / 256)*512)) % BM;
+        if ( (d<511) ) {
+          h = 10+round((512-Topo[i])*32 / d);
+          h = round((h+lh) / 2);
+          h = round((h+lheights[x]) / 2);
+          lheights[x] = h;
+          lh = h;
+          c = LightMap[i];
+          c = round((c+lc) / 2);
+          c = round((c+lcs[x]) / 2);
+          lcs[x] = c;
+          lc = c;
+        } else {
+          h = 0;
+          c = 0;
+        }
+        if ( h<0 ) h = 0;
+        if ( h<heights[x] ) {
+          j = x+h*640;
+          for ( y=h ; y <= heights[x] ; y++) {
+            API.putpixel(j, c );
+            j = j+640;
+          }
+          heights[x] = h;
+        }
+      tx = tx+txDelta;
+      ty = ty+tyDelta;
+    }
+  }
+}
+
+function MakeTopo() {
+let
+   i,x,y,v;
+
+
+  i = 0;
+  for ( y=0 ; y <= 512 ; y++)
+    {
+      for ( x=0 ; x <= 512 ; x++)
+        {
+          v = 127-(((x % 32)-15)*((x % 32)-15)+((y % 32)-15)*((y % 32)-
+               15));
+          if ( v < 0 ) v = 0;
+         Topo[i] = v;
+      /*inc(i);*/
+          i = i+1;
+        }
+    }
+}
+
+
+/*
+ * 
+ *
+ */
+function RadialShadow(x,y) {
+let
+   r,a,h,hDelta,
+  tx,ty,i,j,c,
+  lx,ly;
+
+
+  for ( a=0 ; a <= 255 ; a++)
+    {
+      tx = x;
+      ty = y;
+      lx = 32*256;
+      ly = 32*256;
+      h = LIGHTHEIGHT * 127;
+      hDelta = 32767;
+      for ( r=0 ; r <= 127 ; r++)
+        {
+          i = round((tx / 256) % 512)+((round(ty / 256) % 512)*512);
+          j = round((lx / 256) % 64)+((round(ly / 256) % 64)*64);
+          if ( Topo[i]>=(h / 128) ) {
+                                         h = Topo[i];
+                                         hDelta = round((LIGHTHEIGHT-h)*128 /
+                                                   (r+1));
+                                         h = h*128;
+                                         c = LightMap[i];
+/*        inc(c,63 - r);*/
+                                         c = c + 63 - r;
+                                         if ( c>255 ) c = 255;
+                                         LightMap[i] = c;
+            }
+          else {
+                 LightMap[i] = 0;
+            }
+      /*dec(h,hDelta);*/
+          h = h-hDelta;
+          if ( h<0 ) h = 0;
+
+
+/* inc(tx,SinTab[(a*4+256) and 1023]);
+      inc(ty,SinTab[(a*4) and 1023]);
+      inc(lx,SinTab[(a*4+256) and 1023]);
+      inc(ly,SinTab[(a*4) and 1023]);)*
+      */
+          tx = tx+SinTab[(a*4+256) % 1024];
+          ty = ty+SinTab[(a*4) % 1024];
+          lx = lx+SinTab[(a*4+256) % 1024];
+          ly = ly+SinTab[(a*4) % 1024];
+        }
+    }
+}
+
+function DrawLight(lx,ly,t ) {
+let
+   i,x,y;
+
+
+  /* for ( i=0 ; i <= BM ; i++) {
+    LightMap[i] = 0;
+  } */
+  RadialShadow(lx+SinTab[t*4 % 1024]*16,ly+SinTab[(t+256) % 1024]*32)
+}
+
+function MakeSinTab() {
+let
+   i;
+
+
+  for ( i=0 ; i <= 1023 ; i++)
+    {
+      SinTab[i] = API.sin(i);
+    }
+}
+
+function MainLoop()
+{
+  DrawLight(x+32*256,y+64*256,a);
+  DrawLand(x,y,200);
+  y=y+256;
+  x=x+256;
+  a=a+1;
+  /*
+  for ( y=0 ; y <= 359 ; y++) {
+    for ( x=0 ; x <= 511 ; x++) {
+      API.putpixel(x+y*640, LightMap[x+y*512]);
+    }
+  } */
+  API.flip();
+  /* console.log('flop'); */
+}
+
+
+x = 128*256;
+y = 128*256;
+a = 0;
+MakeSinTab();
+MakeTopo();
+
+
+    
+    </script>
+    
+    <script>
+        const loopy = () => {
+            MainLoop();
+            window.requestAnimationFrame(loopy);
+        }
+        loopy();
+    </script>
+</body>
+</html>
+
